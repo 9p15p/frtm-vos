@@ -12,11 +12,12 @@ class ResnetFeatureExtractor:
         networks = {"resnet18": resnet18, "resnet34": resnet34, "resnet50": resnet50, "resnet101": resnet101}
 
         self.resnet = networks[name](pretrained=True)
-        del self.resnet.avgpool, self.resnet.fc
+        del self.resnet.avgpool, self.resnet.fc #删掉平均池化和全连接层
         for m in self.resnet.parameters():
             m.requires_grad = False
         self.resnet.eval()
 
+        #out_channels_nums like{'layer5':2048;'layer4':1024 ......}
         self._out_channels = odict(  # Deep-to-shallow order is required by SegNetwork
             layer5=get_out_channels(self.resnet.layer4),
             layer4=get_out_channels(self.resnet.layer3),
@@ -32,6 +33,14 @@ class ResnetFeatureExtractor:
         self.norm_bias = (-means / stds)
 
     def to(self, device):
+        """
+
+        Args:
+            device: e.g. 'cuda:0'
+
+        Returns:
+            self: resnet(device),norm_weight(device),norm_bias(device)
+        """
         self.resnet.to(device)
         self.norm_weight = self.norm_weight.to(device)
         self.norm_bias = self.norm_bias.to(device)

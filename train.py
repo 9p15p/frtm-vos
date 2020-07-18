@@ -1,3 +1,4 @@
+import setuptools
 import sys, pathlib
 p = str(pathlib.Path(__file__).absolute().parents[1])
 if p not in sys.path: sys.path.append(p)
@@ -20,9 +21,24 @@ from model.discriminator import Discriminator
 from model.seg_network import SegNetwork
 
 
+
 class ModelParameters:
 
     def __init__(self, name, feature_extractor="resnet101", device="cuda:0", batch_size=None, tmodel_cache_path=None):
+        """
+        Model parameters;
+        disc_params;
+        refnet_params;
+        feature_extractor;
+        tmodel_cache;
+
+        Args:
+            name: the name of dir you want to save in './checkpoints' and 'tmodels_cache'
+            feature_extractor: train models'name, e.g:resnet101
+            device: e.g:cuda:0
+            batch_size: batch size, in GPU with 11G cache, the recommended value is 8.
+            tmodel_cache_path: todo: make training process short
+        """
         super().__init__()
 
         self.name = name  # Training session name
@@ -36,6 +52,7 @@ class ModelParameters:
             num_aug=15,
             min_px_count=1,
 
+            # foreground
             fg_aug_params=edict(
                 rotation=[5, -5, 10, -10, 20, -20, 30, -30, 45, -45],
                 fliplr=[False, False, False, False, True],
@@ -44,6 +61,7 @@ class ModelParameters:
                 blur_size=[0.0, 0.0, 0.0, 2.0],
                 blur_angle=[0, 45, 90, 135],
             ),
+            # background
             bg_aug_params=edict(
                 tcenter=[(0.5, 0.5)],
                 rotation=[0, 0, 0],
@@ -84,15 +102,26 @@ class ModelParameters:
 
         p = self.refnet_params
         ft_channels = {L: nch for L, nch in extractor.get_out_channels().items() if L in p.refinement_layers}
-        seg_network = SegNetwork(1, p.nchannels, ft_channels, p.use_batch_norm)
-        mdl = TrainerModel(augmenter, extractor, self.disc_params, seg_network, batch_size=self.batch_size,
-                           tmodel_cache=self.tmodel_cache, device=self.device)
+        seg_network = SegNetwork(
+            in_channels=  1,
+            out_channels= p.nchannels,
+            ft_channels=ft_channels,
+            use_bn=p.use_batch_norm)
+        mdl = TrainerModel(
+            augmenter=augmenter,
+            feature_extractor=extractor,
+            disc_params=self.disc_params,
+            seg_network=seg_network,
+            batch_size=self.batch_size,
+            tmodel_cache=self.tmodel_cache, device=self.device)
         mdl = mdl.to(self.device)
 
         return mdl
 
 
 if __name__ == '__main__':
+
+    dev = f'cuda'
 
     paths = dict(
         dv2017="dataset/DAVIS",
@@ -116,6 +145,7 @@ if __name__ == '__main__':
     args_parser.add_argument('--dset', type=str, default="all", choices=["all", "yt2018", "dv2017"],
                              help='Training datasets. all = use all data; Both DAVIS 2017 and YouTubeVOS 2018.')
     args_parser.add_argument('--dev', type=str, default="cuda:0", help='Target device to run on, default is cuda:0.')
+    args_parser.add_argument('--bz', type=int, default=16, help='Batch size..')
     args = args_parser.parse_args()
 
     dataset = []
@@ -124,9 +154,12 @@ if __name__ == '__main__':
     if args.dset in ('all', 'yt2018'):
         dataset.append(('YouTubeVOSDataset', edict(dset_path=paths['ytvos2018'], epoch_samples=4000, min_seq_length=4, sample_size=3)))
 
-    params = ModelParameters(args.name, feature_extractor=args.ftext, device=args.dev, tmodel_cache_path=paths['tmcache'], batch_size=16)
+    params = ModelParameters(args.name, feature_extractor=args.ftext, device=dev, tmodel_cache_path=paths['tmcache'], batch_size=args.bz)
     model = params.get_model()
+    #only learn the parameters ofthe segmentation network, and freeze the weights of the fea-ture extractor.
     optimizer = torch.optim.Adam(model.refiner.parameters(), lr=1e-3, betas=(0.9, 0.999), weight_decay=1e-5, amsgrad=True)
+
+
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=127, gamma=0.1)
     trainer = Trainer(args.name, model, optimizer=optimizer, scheduler=scheduler, dataset=dataset, checkpoints_path=paths['checkpoints'],
                       log_path=paths['tensorboard'], max_epochs=260, batch_size=params.batch_size, num_workers=8, load_latest=True, save_interval=1)

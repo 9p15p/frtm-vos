@@ -45,6 +45,7 @@ class CAB(nn.Module):
 
 
 class RRB(nn.Module):
+    # is base_version('building block') ,not bottleneck_version
 
     def __init__(self, oc, use_bn=False):
         super().__init__()
@@ -159,23 +160,24 @@ class SegNetwork(nn.Module):
         assert ft_channels is not None
         self.ft_channels = ft_channels
 
-        self.TSE = nn.ModuleDict()
-        self.RRB1 = nn.ModuleDict()
-        self.CAB = nn.ModuleDict()
-        self.RRB2 = nn.ModuleDict()
+        self.TSE = nn.ModuleDict()  #target segmentation encoder
+        self.RRB1 = nn.ModuleDict() #refinement modules comprised of two residual blocks[1st]
+        self.CAB = nn.ModuleDict()  #channel attention block
+        self.RRB2 = nn.ModuleDict() #refinement modules comprised of two residual blocks[2nd]
 
         ic = in_channels
         oc = out_channels
 
-        for L, fc in self.ft_channels.items():
+        for L, fc in self.ft_channels.items(): #e.g:'layer5',2048
             self.TSE[L] = TSE(fc, ic, oc)
             self.RRB1[L] = RRB(oc, use_bn=use_bn)
             self.CAB[L] = CAB(oc, L == 'layer5')
             self.RRB2[L] = RRB(oc, use_bn=use_bn)
 
+        # 'bicubic' interpolate performs better than resize('bilinear' or 'nearest').有比双线性和resize更好的表现。今后可以用这个代替。
         #if torch.__version__ == '1.0.1'
         self.project = BackwardCompatibleUpsampler(out_channels)
-        #self.project = Upsampler(out_channels)
+        # self.project = Upsampler(out_channels)
 
     def forward(self, scores, features, image_size):
 

@@ -23,10 +23,32 @@ def text_bargraph(values):
 
 
 def conv(ic, oc, ksize, bias=True, dilation=1, stride=1):
+    """
+
+    Args:
+        ic: in channels
+        oc: out channels
+        ksize: kenel size
+        bias: bias
+        dilation: dilation
+        stride: stride
+
+    Returns:
+
+    """
     return nn.Conv2d(ic, oc, ksize, padding=ksize // 2, bias=bias, dilation=dilation, stride=stride)
 
 
 def relu(negative_slope=0.0, inplace=False):
+    """
+
+    Args:
+        negative_slope:  Controls the angle of the negative slope. Default: 1e-2
+        inplace: can optionally do the operation in-place. Default: False
+
+    Returns:
+
+    """
     return nn.LeakyReLU(negative_slope, inplace=inplace)
 
 

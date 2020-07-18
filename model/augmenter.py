@@ -95,12 +95,16 @@ class AugmentationSpec:
 class ImageAugmenter:
 
     def __init__(self, parameters: dict):
+        """
 
+        Args:
+            parameters: ModelParams[dict/edict]
+        """
         self.params = parameters
         self.T_generate = 0
-        self.max_retries = 100
+        self.max_retries = 100  #retry
 
-    @staticmethod
+    @staticmethod #静态方法无需实例化，直接拿类名即可调用
     def _scale(sx, sy):
         return np.array([[sx, 0, 0], [0, sy, 0], [0, 0, 1]])
 

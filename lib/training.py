@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from lib.training_datasets import *
 from lib.utils import AverageMeter
-
+import horovod.torch as hvd
 
 class Trainer:
 
@@ -18,12 +18,11 @@ class Trainer:
 
         self.name = name
         self.model = model
-        self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
 
         self.dataset = dataset
-        self.checkpoints_path = checkpoints_path / name
+        self.checkpoints_path = checkpoints_path / name  #For PosixPath,this action is like 'os.path.join()'.
         self.checkpoints_path.mkdir(exist_ok=True, parents=True)
         self.log_path = log_path / name
         self.log = None
@@ -88,15 +87,15 @@ class Trainer:
 
         header = "{self.epoch}: {iteration}/{iters_per_epoch}, sps={sps:.2f} ({sps_avg:.2f}), ".format(
             self=self, iteration=iteration, iters_per_epoch=iters_per_epoch,
-            sps=self.batch_size / runtime.val, sps_avg=self.batch_size / runtime.avg)
+            sps=self.batch_size / runtime.val, sps_avg=self.batch_size / runtime.avg) #speeds
         # sps: samples per second
 
         stats = []
-        dec = 5
+        dec = 5   #decimal point
         for k, v in self.stats.items():
             if k in self.stats_to_print:
                 k = k[6:] if k.startswith("stats/") else k
-                s = '{k}={v.val:.{dec}f} ({v.avg:.{dec}f})'.format(k=k, v=v, dec=dec)
+                s = '{k}={v.val:.{dec}f} ({v.avg:.{dec}f})'.format(k=k, v=v, dec=dec) # ':.5f' means 5 digits after the decimal point
                 stats.append(s)
 
         print(header + ", ".join(stats))
@@ -117,6 +116,10 @@ class Trainer:
             self.stats = ddict(AverageMeter)
 
             dset = ConcatDataset([eval(cls)(**params) for cls, params in self.dataset])
+            # eval(cls) means to call the Dataset,e.g:DAVISDataset
+            # (**params) means to delivery the initial params[dict] into Dataset. e.g:DAVISDataset(params)
+            # Finally, concat these Datasets.
+
 
             loader = DataLoader(dset, batch_size=self.batch_size, num_workers=self.num_workers,
                                 pin_memory=True, shuffle=True)

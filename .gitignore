@@ -1,2 +1,5 @@
 /checkpoints/
-/weights/
+/dataset/
+/lib/davis_meta.pth
+/lib/ytvos2018_meta.pth
+/tmodels_cache
