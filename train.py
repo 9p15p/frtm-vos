@@ -19,7 +19,7 @@ from model.augmenter import ImageAugmenter
 from model.feature_extractor import ResnetFeatureExtractor
 from model.discriminator import Discriminator
 from model.seg_network import SegNetwork
-
+import horovod.torch as hvd
 
 
 class ModelParameters:
@@ -121,6 +121,12 @@ class ModelParameters:
 
 if __name__ == '__main__':
 
+    # Initialize Horovod
+    hvd.init()
+
+    # Pin GPU to be used to process local rank (one GPU per process)
+    torch.cuda.set_device(hvd.local_rank())
+
     dev = f'cuda'
 
     paths = dict(
@@ -157,10 +163,10 @@ if __name__ == '__main__':
     params = ModelParameters(args.name, feature_extractor=args.ftext, device=dev, tmodel_cache_path=paths['tmcache'], batch_size=args.bz)
     model = params.get_model()
     #only learn the parameters ofthe segmentation network, and freeze the weights of the fea-ture extractor.
+
     optimizer = torch.optim.Adam(model.refiner.parameters(), lr=1e-3, betas=(0.9, 0.999), weight_decay=1e-5, amsgrad=True)
-
-
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=127, gamma=0.1)
+    
     trainer = Trainer(args.name, model, optimizer=optimizer, scheduler=scheduler, dataset=dataset, checkpoints_path=paths['checkpoints'],
                       log_path=paths['tensorboard'], max_epochs=260, batch_size=params.batch_size, num_workers=8, load_latest=True, save_interval=1)
     trainer.train()

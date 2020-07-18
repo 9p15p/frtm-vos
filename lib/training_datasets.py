@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
+SAMPLE_SIZE = 3 # how many frames we sample.
 
 class SampleSpec:
 
@@ -199,9 +200,9 @@ class TrainingDataset(Dataset):
 
 class DAVISDataset(TrainingDataset):
 
-    def __init__(self, dset_path: Path, epoch_repeats=1, epoch_samples=0, min_seq_length=4, sample_size=3):
+    def __init__(self, dset_path: Path, epoch_repeats=1, epoch_samples=0, min_seq_length=4, sample_size=SAMPLE_SIZE):
         super().__init__("davis", dset_path)
-
+        self.sample_size = sample_size
         self.jpeg_path = self.dset_path / "JPEGImages" / "480p"
         self.anno_path = self.dset_path / "Annotations" / "480p"
         self.sequences = [s.strip() for s in open(self.dset_path / "ImageSets/2017/train.txt").readlines()]
@@ -264,9 +265,9 @@ class DAVISDataset(TrainingDataset):
 
 class YouTubeVOSDataset(TrainingDataset):
 
-    def __init__(self, dset_path, epoch_samples=4000, epoch_repeats=1, min_seq_length=4, sample_size=3, year=2018):
+    def __init__(self, dset_path, epoch_samples=4000, epoch_repeats=1, min_seq_length=4, sample_size=SAMPLE_SIZE, year=2018):
         super().__init__("ytvos" + str(year), dset_path)
-
+        self.sample_size = sample_size
         self.jpeg_path = self.dset_path / "train" / "JPEGImages"
         self.anno_path = self.dset_path / "train" / "Annotations"
         self.sequences = [s.strip() for s in open(Path(__file__).resolve().parent / "ytvos_jjtrain.txt").readlines()]

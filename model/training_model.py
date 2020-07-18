@@ -101,6 +101,7 @@ class TrainerModel(nn.Module):
             y = labels[i].to(self.device).float()
             acc = self.compute_accuracy(s.detach(), y)
             loss = self.compute_loss(s, y)
+            print(f'i:{i}')
             loss.backward()
 
             losses.update(loss.item())

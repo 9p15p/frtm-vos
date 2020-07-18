@@ -120,11 +120,22 @@ class Trainer:
             # (**params) means to delivery the initial params[dict] into Dataset. e.g:DAVISDataset(params)
             # Finally, concat these Datasets.
 
+            # Partition dataset among workers using DistributedSampler
+            train_sampler = torch.utils.data.distributed.DistributedSampler(
+                dset, num_replicas=hvd.size(), rank=hvd.rank())
 
             loader = DataLoader(dset, batch_size=self.batch_size, num_workers=self.num_workers,
                                 pin_memory=True, shuffle=True)
             t0 = None
             runtime = AverageMeter()
+
+            backward_passes_per_step = dset.datasets[0].sample_size - 1 # e.g:3 frames has 2 backward()
+            # Add Horovod Distributed Optimizer
+            self.optimizer = hvd.DistributedOptimizer(self.optimizer, named_parameters=self.model.named_parameters(),
+                                                 backward_passes_per_step=backward_passes_per_step)
+            # Broadcast parameters from rank 0 to all other processes.
+            hvd.broadcast_parameters(self.model.state_dict(), root_rank=0)
+
 
             for i, batch in enumerate(loader, 1):
                 t0 = time() if t0 is None else t0  # Ignore loader startup pause
