@@ -129,8 +129,9 @@ class Trainer:
             t0 = None
             runtime = AverageMeter()
 
-            backward_passes_per_step = dset.datasets[0].sample_size - 1 # e.g:3 frames has 2 backward()
+
             # Add Horovod Distributed Optimizer
+            backward_passes_per_step = dset.datasets[0].sample_size - 1 # e.g:3 frames has 2 backward()
             self.optimizer = hvd.DistributedOptimizer(self.optimizer, named_parameters=self.model.named_parameters(),
                                                  backward_passes_per_step=backward_passes_per_step)
             # Broadcast parameters from rank 0 to all other processes.

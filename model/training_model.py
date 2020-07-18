@@ -101,7 +101,6 @@ class TrainerModel(nn.Module):
             y = labels[i].to(self.device).float()
             acc = self.compute_accuracy(s.detach(), y)
             loss = self.compute_loss(s, y)
-            print(f'i:{i}')
             loss.backward()
 
             losses.update(loss.item())
@@ -141,6 +140,7 @@ class TrainerModel(nn.Module):
                     self.save_target_model(specs[i], L, self.tmodels[i].get_state_dict())
 
             else:
+                # print('the model is pre_trained and has tmodel_cache.')
                 if self.ft_channels is None:
                     self.ft_channels = self.feature_extractor.get_out_channels()[L]
                 self.tmodels[i].initialize_pretrained(state_dict)
