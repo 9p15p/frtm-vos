@@ -43,7 +43,6 @@ class Trainer:
                 self.load_checkpoint(checkpoints[-1])
 
     def load_checkpoint(self, file):
-
         print("Loading checkpoint", file)
         ckpt = torch.load(file, map_location='cpu')
         # assert ckpt['name'] == self.name
@@ -53,6 +52,8 @@ class Trainer:
         self.model.load_state_dict(ckpt['model'])
         self.optimizer.load_state_dict(ckpt['optimizer'])
         self.scheduler.load_state_dict(ckpt['scheduler'])
+
+
 
     def save_checkpoint(self):
 
@@ -109,34 +110,30 @@ class Trainer:
             self.log.add_scalar(k, v.avg, self.epoch)
 
     def train(self):
+        dset = ConcatDataset([eval(cls)(**params) for cls, params in self.dataset])
+        # eval(cls) means to call the Dataset,e.g:DAVISDataset
+        # (**params) means to delivery the initial params[dict] into Dataset. e.g:DAVISDataset(params)
+        # Finally, concat these Datasets.
+
+        # Partition dataset among workers using DistributedSampler
+        train_sampler = torch.utils.data.distributed.DistributedSampler(
+            dset, num_replicas=hvd.size(), rank=hvd.rank())
+
+        loader = DataLoader(dset, batch_size=self.batch_size, sampler=train_sampler, num_workers=self.num_workers,
+                            pin_memory=True, shuffle=False)
+        # Add Horovod Distributed Optimizer
+        backward_passes_per_step = dset.datasets[0].sample_size - 1  # e.g:3 frames has 2 backward()
+        self.optimizer = hvd.DistributedOptimizer(self.optimizer, named_parameters=self.model.named_parameters(),
+                                                  backward_passes_per_step=backward_passes_per_step)
+        # Broadcast parameters from rank 0 to all other processes.
+        hvd.broadcast_parameters(self.model.state_dict(), root_rank=0)
 
         for epoch in range(self.epoch + 1, self.max_epochs + 1):
 
             self.epoch = epoch
             self.stats = ddict(AverageMeter)
-
-            dset = ConcatDataset([eval(cls)(**params) for cls, params in self.dataset])
-            # eval(cls) means to call the Dataset,e.g:DAVISDataset
-            # (**params) means to delivery the initial params[dict] into Dataset. e.g:DAVISDataset(params)
-            # Finally, concat these Datasets.
-
-            # Partition dataset among workers using DistributedSampler
-            train_sampler = torch.utils.data.distributed.DistributedSampler(
-                dset, num_replicas=hvd.size(), rank=hvd.rank())
-
-            loader = DataLoader(dset, batch_size=self.batch_size, num_workers=self.num_workers,
-                                pin_memory=True, shuffle=True)
             t0 = None
             runtime = AverageMeter()
-
-
-            # Add Horovod Distributed Optimizer
-            backward_passes_per_step = dset.datasets[0].sample_size - 1 # e.g:3 frames has 2 backward()
-            self.optimizer = hvd.DistributedOptimizer(self.optimizer, named_parameters=self.model.named_parameters(),
-                                                 backward_passes_per_step=backward_passes_per_step)
-            # Broadcast parameters from rank 0 to all other processes.
-            hvd.broadcast_parameters(self.model.state_dict(), root_rank=0)
-
 
             for i, batch in enumerate(loader, 1):
                 t0 = time() if t0 is None else t0  # Ignore loader startup pause
@@ -151,11 +148,14 @@ class Trainer:
                 stats['stats/lr'] = self.scheduler.get_last_lr()[0]
                 self.update_stats(stats, i, len(loader), runtime, do_print=True)
 
-            self.scheduler.step()
+            if hvd.rank() == 0:
+                self.log_stats() # tensorboard
+                self.scheduler.step()
+            lr_dict = hvd.broadcast_object(self.scheduler.state_dict(), 0)
+            if hvd.rank() > 0:
+                self.scheduler.load_state_dict(lr_dict)
 
-            if self.epoch % self.save_interval == 0:
+            if self.epoch % self.save_interval == 0 and hvd.rank() == 0:
                 self.save_checkpoint()
-
-            self.log_stats()
 
         print("%s done" % self.name)
