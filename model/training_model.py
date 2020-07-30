@@ -9,11 +9,12 @@ from .discriminator import Discriminator
 
 
 class TargetObject:
-
+    # It's for TrainerModel.tmodels
+    # TrainerModel.tmodels = [TargetObject(disc_params) for _ in range(batch_size)]
     def __init__(self, disc_params, **kwargs):
 
         self.discriminator = Discriminator(**disc_params)
-        for key, val in kwargs.items():
+        for key, val in kwargs.items(): #In original frtm, kwargs is a empty dict. So skip here
             setattr(self, key, val)
 
     def initialize(self, ft, mask):

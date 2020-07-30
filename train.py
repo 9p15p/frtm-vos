@@ -72,7 +72,7 @@ class ModelParameters:
                 blur_angle=[0, 45, 90, 135],
             ),
         )
-
+        # for discriminator 区分器
         self.disc_params = edict(
             layer="layer4", in_channels=256 if '18' in feature_extractor else 1024, c_channels=32, out_channels=1,
             init_iters=(5, 10, 10, 10, 10), update_iters=(10,), update_filters=True,
@@ -81,6 +81,7 @@ class ModelParameters:
             pixel_weighting=None, device=self.device
         )
 
+        # for segment network
         self.refnet_params = edict(
             refinement_layers=["layer5", "layer4", "layer3", "layer2"],
             nchannels=64, use_batch_norm=True
@@ -88,6 +89,7 @@ class ModelParameters:
 
         self.feature_extractor = feature_extractor
 
+        # for target model cache
         self.tmodel_cache = edict(
             enable=True,
             read_only=False,
@@ -127,8 +129,6 @@ if __name__ == '__main__':
     # Pin GPU to be used to process local rank (one GPU per process)
     torch.cuda.set_device(hvd.local_rank())
 
-    dev = f'cuda'
-
     paths = dict(
         dv2017="dataset/DAVIS",
         ytvos2018="dataset/ytvos2018",
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     args_parser.add_argument('--ftext', type=str, default="resnet101", choices=["resnet101", "resnet18"], help='Feature extractor')
     args_parser.add_argument('--dset', type=str, default="all", choices=["all", "yt2018", "dv2017"],
                              help='Training datasets. all = use all data; Both DAVIS 2017 and YouTubeVOS 2018.')
-    args_parser.add_argument('--dev', type=str, default="cuda:0", help='Target device to run on, default is cuda:0.')
+    args_parser.add_argument('--dev', type=str, default="cuda", help='Target device to run on, default is \'cuda\'.')
     args_parser.add_argument('--bz', type=int, default=16, help='Batch size..')
     args = args_parser.parse_args()
 
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     if args.dset in ('all', 'yt2018'):
         dataset.append(('YouTubeVOSDataset', edict(dset_path=paths['ytvos2018'], epoch_samples=4000, min_seq_length=4, sample_size=3)))
 
-    params = ModelParameters(args.name, feature_extractor=args.ftext, device=dev, tmodel_cache_path=paths['tmcache'], batch_size=args.bz)
+    params = ModelParameters(args.name, feature_extractor=args.ftext, device=args.dev, tmodel_cache_path=paths['tmcache'], batch_size=args.bz)
     model = params.get_model()
     #only learn the parameters ofthe segmentation network, and freeze the weights of the fea-ture extractor.
 

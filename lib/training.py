@@ -121,6 +121,7 @@ class Trainer:
 
         loader = DataLoader(dset, batch_size=self.batch_size, sampler=train_sampler, num_workers=self.num_workers,
                             pin_memory=True, shuffle=False)
+
         # Add Horovod Distributed Optimizer
         backward_passes_per_step = dset.datasets[0].sample_size - 1  # e.g:3 frames has 2 backward()
         self.optimizer = hvd.DistributedOptimizer(self.optimizer, named_parameters=self.model.named_parameters(),
